@@ -9,30 +9,68 @@ on:
 permissions:
   contents: write
 
+env:
+  # stable-diffusion.cpp revision (needs FLUX.2 Klein support, merged Jan 2026).
+  SDCPP_REF: master
+
 jobs:
-  # 1) Compile the C++ engine to WebAssembly (single self-contained engine.js)
+  # 1) Build the real inference engine (stable-diffusion.cpp, CPU) in two flavours:
+  #    AVX2 (fast) and AVX (fallback for older Windows 7 era CPUs).
   engine:
-    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04      # glibc 2.35 -> runs on Ubuntu 22.04+
+            name: linux
+          - os: windows-2022      # static MSVC runtime, targets Windows 7 (0x0601)
+            name: windows
+    runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Fetch stable-diffusion.cpp
+        shell: bash
+        run: |
+          git clone --recursive https://github.com/leejet/stable-diffusion.cpp sdcpp
+          cd sdcpp && git checkout "$SDCPP_REF" && git submodule update --init --recursive
 
-      - uses: mymindstorm/setup-emsdk@v14
-        with:
-          version: 3.1.64
+      - name: Build (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          cd sdcpp
+          for v in avx2 avx; do
+            if [ $v = avx2 ]; then F="-DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON"; else F="-DGGML_AVX2=OFF -DGGML_FMA=OFF -DGGML_F16C=OFF"; fi
+            cmake -B build-$v -DCMAKE_BUILD_TYPE=Release -DGGML_NATIVE=OFF -DGGML_AVX=ON $F -DSD_BUILD_SHARED_LIBS=OFF -DBUILD_SHARED_LIBS=OFF
+            cmake --build build-$v --config Release -j 4
+            mkdir -p ../out
+            B=$(ls build-$v/bin/sd-cli build-$v/bin/sd 2>/dev/null | head -1)
+            cp "$B" ../out/sd-cli-$v && chmod +x ../out/sd-cli-$v
+          done
+          ../out/sd-cli-avx2 --help | head -5
 
-      - name: Compile engine.cpp
-        run: >
-          emcc engine.cpp -O3 -std=c++17
-          -sMODULARIZE=1 -sEXPORT_NAME=EngineModule
-          -sSINGLE_FILE=1 -sENVIRONMENT=web -sALLOW_MEMORY_GROWTH=1
-          -sSTACK_SIZE=1048576
-          -sEXPORTED_RUNTIME_METHODS=ccall,UTF8ToString
-          -o engine.js
+      - name: Build (Windows 7 compatible)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          cd sdcpp
+          for v in avx2 avx; do
+            if [ $v = avx2 ]; then F="-DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON"; else F="-DGGML_AVX2=OFF -DGGML_FMA=OFF -DGGML_F16C=OFF"; fi
+            cmake -B build-$v -G "Visual Studio 17 2022" -A x64 \
+              -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded \
+              -DCMAKE_C_FLAGS="/D_WIN32_WINNT=0x0601 /DWINVER=0x0601" \
+              -DCMAKE_CXX_FLAGS="/D_WIN32_WINNT=0x0601 /DWINVER=0x0601 /EHsc" \
+              -DGGML_NATIVE=OFF -DGGML_AVX=ON $F -DSD_BUILD_SHARED_LIBS=OFF -DBUILD_SHARED_LIBS=OFF
+            cmake --build build-$v --config Release -j 4
+            mkdir -p ../out
+            B=$(ls build-$v/bin/Release/sd-cli.exe build-$v/bin/Release/sd.exe 2>/dev/null | head -1)
+            cp "$B" ../out/sd-cli-$v.exe
+          done
+          ../out/sd-cli-avx2.exe --help | head -5
 
       - uses: actions/upload-artifact@v4
         with:
-          name: engine
-          path: engine.js
+          name: engine-${{ matrix.name }}
+          path: out/*
           if-no-files-found: error
 
   # 2) Package the desktop app (Electron 22 = last release supporting Windows 7)
@@ -43,10 +81,12 @@ jobs:
       matrix:
         include:
           - os: ubuntu-22.04
+            name: linux
             args: --linux AppImage --x64
             artifact: app-linux
             glob: dist/*.AppImage
           - os: windows-2022
+            name: windows
             args: --win portable --x64
             artifact: app-windows
             glob: dist/*.exe
@@ -56,42 +96,20 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 20
 
       - uses: actions/download-artifact@v4
         with:
-          name: engine
-          path: .
+          name: engine-${{ matrix.name }}
+          path: bin
 
-      - name: Generate package.json
+      - name: Set version
         shell: bash
         run: |
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then VERSION="${GITHUB_REF_NAME#v}"; else VERSION="0.0.${GITHUB_RUN_NUMBER}"; fi
-          cat > package.json <<EOF
-          {
-            "name": "jenai-vp",
-            "productName": "JenAI - V & P",
-            "version": "${VERSION}",
-            "description": "Infinite AI Synthesis Engine Workspace - Video, Images, Text Analytics and Models",
-            "author": "JenAI <noreply@jenai-vp.app>",
-            "license": "MIT",
-            "main": "main.js",
-            "devDependencies": {
-              "electron": "22.3.27",
-              "electron-builder": "24.13.3"
-            },
-            "build": {
-              "appId": "io.github.jenai-vp",
-              "productName": "JenAI - V & P",
-              "files": ["main.js", "index.html", "engine.js"],
-              "directories": { "output": "dist" },
-              "artifactName": "\${productName}-\${version}-\${os}-\${arch}.\${ext}",
-              "linux": { "target": "AppImage", "category": "AudioVideo" },
-              "win": { "target": "portable" }
-            }
-          }
-          EOF
-          cat package.json
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then VERSION="${GITHUB_REF_NAME#v}"; else VERSION="1.1.${GITHUB_RUN_NUMBER}"; fi
+          npm pkg set version="$VERSION"
+          chmod +x bin/* || true
+          ls -la bin
 
       - run: npm install --no-audit --no-fund
 
