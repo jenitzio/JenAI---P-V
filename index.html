@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' blob: data:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'">
+<title>JenAI - V &amp; P</title>
+<style>
+:root{
+  --bg:#0d0e10;--panel:#14161a;--raised:#1b1e23;--line:#262a31;--line2:#323741;
+  --text:#eceae6;--muted:#8b9099;--dim:#5d626b;
+  --accent:#e8a33d;--accent2:#f2c36b;--accentInk:#1a1206;
+  --ok:#5fbf8f;--err:#e5655b;
+  --r:10px;--mono:"Cascadia Mono",Consolas,"DejaVu Sans Mono",monospace;
+  --sans:"Segoe UI Variable","Segoe UI","Ubuntu","Cantarell","Noto Sans",system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font:13.5px/1.5 var(--sans);display:flex;flex-direction:column;overflow:hidden;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:var(--line2);border-radius:10px;border:3px solid var(--panel)}
+/* top bar */
+header{height:54px;display:flex;align-items:center;gap:28px;padding:0 18px;border-bottom:1px solid var(--line);background:var(--panel)}
+.brand{display:flex;align-items:center;gap:10px;font-weight:650;letter-spacing:.01em}
+.mark{width:26px;height:26px;border-radius:7px;background:conic-gradient(from 210deg,var(--accent),var(--accent2),#b8742a,var(--accent));box-shadow:0 0 0 1px #0006 inset}
+.brand small{color:var(--muted);font-weight:500;margin-left:2px}
+nav{display:flex;gap:2px;height:100%}
+nav button{background:none;border:0;padding:0 16px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;font-weight:550}
+nav button:hover{color:var(--text)}
+nav button.on{color:var(--text);border-color:var(--accent)}
+.spacer{flex:1}
+.pill{display:flex;align-items:center;gap:8px;padding:5px 11px;border:1px solid var(--line);border-radius:99px;color:var(--muted);font-size:12px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--dim)}.dot.ok{background:var(--ok)}.dot.busy{background:var(--accent);animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.35}}
+/* layout */
+main{flex:1;display:flex;min-height:0}
+.view{display:none;flex:1;min-height:0}.view.on{display:flex}
+aside.ctrl{width:360px;flex:none;border-right:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column}
+.ctrl .scroll{flex:1;overflow:auto;padding:18px;display:flex;flex-direction:column;gap:18px}
+.ctrl footer{padding:14px 18px;border-top:1px solid var(--line);display:flex;gap:8px}
+.field{display:flex;flex-direction:column;gap:7px}
+.field>label,.label{font-size:11px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between}
+.label output{color:var(--text);font-family:var(--mono);letter-spacing:0;text-transform:none}
+textarea,input[type=text],input[type=number],select{width:100%;background:var(--raised);border:1px solid var(--line);border-radius:8px;padding:9px 11px;outline:none;transition:border-color .15s}
+textarea{resize:vertical;min-height:110px}
+textarea:focus,input:focus,select:focus{border-color:var(--accent)}
+select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 16px) 50%,calc(100% - 11px) 50%;background-size:5px 5px;background-repeat:no-repeat;padding-right:30px}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.row{display:flex;gap:10px}.row>*{flex:1}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{padding:5px 10px;border-radius:7px;border:1px solid var(--line);background:var(--raised);cursor:pointer;font-size:12px;color:var(--muted)}
+.chip.on{border-color:var(--accent);color:var(--text);background:#e8a33d14}
+.btn{border:1px solid var(--line2);background:var(--raised);border-radius:8px;padding:9px 14px;cursor:pointer;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:.15s}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accentInk);flex:1}
+.btn.primary:hover{background:var(--accent2)}
+.btn.danger{color:var(--err)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.sm{padding:6px 10px;font-size:12px}
+.note{font-size:12px;color:var(--muted);background:var(--raised);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.note b{color:var(--text)}
+.ref{display:flex;gap:10px;align-items:center}
+.ref img{width:52px;height:52px;object-fit:cover;border-radius:6px;border:1px solid var(--line)}
+/* stage */
+.stage{flex:1;display:flex;flex-direction:column;min-width:0}
+.canvas{flex:1;display:flex;align-items:center;justify-content:center;padding:28px;min-height:0;position:relative;
+  background:radial-gradient(circle at 50% 40%,#1a1c20 0,var(--bg) 70%)}
+.frame{max-width:100%;max-height:100%;border-radius:var(--r);box-shadow:0 20px 60px #0008,0 0 0 1px var(--line);background:#000}
+.empty{text-align:center;color:var(--dim)}
+.empty .big{font-size:15px;color:var(--muted);margin-bottom:6px;font-weight:600}
+.prog{position:absolute;left:50%;bottom:28px;transform:translateX(-50%);width:min(520px,80%);background:#14161ae6;border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:none;backdrop-filter:blur(6px)}
+.prog.on{display:block}
+.bar{height:4px;background:var(--line);border-radius:4px;overflow:hidden;margin-top:8px}
+.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .3s}
+.bar.ind i{width:30%;animation:ind 1.3s infinite ease-in-out}
+@keyframes ind{0%{margin-left:-30%}100%{margin-left:100%}}
+.prog .t{display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
+.prog .t b{color:var(--text);font-weight:600}
+.toolbar{height:48px;border-top:1px solid var(--line);display:flex;align-items:center;gap:8px;padding:0 16px;background:var(--panel);font-size:12px;color:var(--muted)}
+.strip{height:96px;border-top:1px solid var(--line);display:flex;gap:8px;padding:10px 16px;overflow-x:auto;background:var(--panel)}
+.strip .th{height:76px;aspect-ratio:1;flex:none;border-radius:6px;border:1px solid var(--line);object-fit:cover;cursor:pointer;background:var(--raised);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px}
+.strip .th:hover{border-color:var(--accent)}
+details.log summary{cursor:pointer;color:var(--muted);font-size:12px}
+pre{font:11px/1.45 var(--mono);color:var(--muted);background:#0a0b0c;border:1px solid var(--line);border-radius:8px;padding:10px;max-height:180px;overflow:auto;white-space:pre-wrap;margin-top:8px}
+/* models & settings pages */
+.page{flex:1;overflow:auto;padding:32px 40px}
+.page h2{font-size:20px;font-weight:650;margin-bottom:4px}
+.page .sub{color:var(--muted);margin-bottom:24px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:12px}
+.card h3{font-size:15px;font-weight:650;display:flex;align-items:center;gap:10px}
+.tag{font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 7px;border-radius:5px;background:var(--raised);color:var(--muted);border:1px solid var(--line)}
+.tag.ok{color:var(--ok);border-color:#5fbf8f55}
+.files{display:flex;flex-direction:column;gap:8px}
+.file{display:grid;grid-template-columns:1fr auto;gap:2px 10px;font-size:12px}
+.file .n{font-family:var(--mono);color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.file .s{color:var(--muted);text-align:right}
+.file .bar{grid-column:1/3;margin-top:3px}
+.kv{display:grid;grid-template-columns:180px 1fr;gap:12px 20px;max-width:820px;align-items:center}
+.kv .k{color:var(--muted)}
+.toast{position:fixed;right:18px;bottom:18px;background:var(--raised);border:1px solid var(--line2);border-left:3px solid var(--accent);padding:11px 14px;border-radius:8px;max-width:420px;box-shadow:0 10px 30px #0008;opacity:0;transform:translateY(8px);transition:.2s;pointer-events:none;z-index:9}
+.toast.on{opacity:1;transform:none}.toast.err{border-left-color:var(--err)}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><div class="mark"></div>JenAI <small>V &amp; P</small></div>
+  <nav>
+    <button class="on" data-view="image">Image Studio</button>
+    <button data-view="video">Video Studio</button>
+    <button data-view="models">Models</button>
+    <button data-view="settings">Settings</button>
+  </nav>
+  <div class="spacer"></div>
+  <div class="pill"><span class="dot" id="statusDot"></span><span id="statusText">Ready</span></div>
+</header>
+
+<main>
+  <!-- IMAGE -->
+  <section class="view on" id="view-image">
+    <aside class="ctrl">
+      <div class="scroll">
+        <div class="field"><label>Model</label><select id="imgModel"></select></div>
+        <div class="field"><label>Prompt</label><textarea id="imgPrompt" placeholder="A weathered lighthouse on a basalt cliff at dusk, volumetric fog, 35mm film photograph"></textarea></div>
+        <div class="field"><label>Aspect</label>
+          <div class="chips" id="imgAspect">
+            <button class="chip on" data-w="512" data-h="512">1:1</button><button class="chip" data-w="640" data-h="480">4:3</button>
+            <button class="chip" data-w="768" data-h="432">16:9</button><button class="chip" data-w="432" data-h="768">9:16</button>
+            <button class="chip" data-w="768" data-h="768">1:1 HD</button><button class="chip" data-w="1024" data-h="1024">1:1 XL</button>
+          </div>
+        </div>
+        <div class="field"><div class="label">Steps <output id="imgStepsV">4</output></div><input type="range" id="imgSteps" min="2" max="12" value="4"></div>
+        <div class="row">
+          <div class="field"><label>Seed</label><input type="number" id="imgSeed" placeholder="Random"></div>
+          <div class="field"><label>Batch</label><select id="imgBatch"><option>1</option><option>2</option><option>4</option></select></div>
+        </div>
+        <div class="field"><label>Reference image <span style="text-transform:none;letter-spacing:0;font-weight:500">optional · edit mode</span></label>
+          <div class="ref"><img id="refThumb" hidden><button class="btn sm" id="refPick">Choose…</button><button class="btn sm" id="refClear" hidden>Remove</button></div>
+        </div>
+        <div class="note">FLUX.2 Klein is step‑distilled: <b>4 steps</b> gives full quality. Runs fully offline on your CPU.</div>
+      </div>
+      <footer><button class="btn primary" id="imgGo">Generate</button><button class="btn" id="imgStop" disabled>Stop</button></footer>
+    </aside>
+    <div class="stage">
+      <div class="canvas" id="imgCanvas"><div class="empty"><div class="big">No image yet</div>Write a prompt and press Generate · Ctrl+Enter</div>
+        <div class="prog" id="imgProg"><div class="t"><b class="ph">Starting</b><span class="eta"></span></div><div class="bar ind"><i></i></div></div>
+      </div>
+      <div class="toolbar"><span id="imgInfo">—</span><div class="spacer"></div><button class="btn sm" id="imgReveal" disabled>Show in folder</button></div>
+      <div class="strip" id="imgStrip"></div>
+    </div>
+  </section>
+
+  <!-- VIDEO -->
+  <section class="view" id="view-video">
+    <aside class="ctrl">
+      <div class="scroll">
+        <div class="field"><label>Model</label><select id="vidModel"></select></div>
+        <div class="field"><label>Prompt</label><textarea id="vidPrompt" placeholder="Slow dolly shot through a neon-lit rainy alley, reflections on wet asphalt, cinematic"></textarea></div>
+        <div class="field"><label>Negative prompt</label><input type="text" id="vidNeg" value="blurry, low quality, distorted, static, watermark, text"></div>
+        <div class="field"><label>Resolution</label>
+          <div class="chips" id="vidAspect">
+            <button class="chip on" data-w="480" data-h="272">480×272 fast</button><button class="chip" data-w="832" data-h="480">832×480</button><button class="chip" data-w="480" data-h="832">480×832</button>
+          </div>
+        </div>
+        <div class="field"><div class="label">Frames <output id="vidFramesV">33</output></div><input type="range" id="vidFrames" min="9" max="81" step="4" value="33"></div>
+        <div class="field"><div class="label">Steps <output id="vidStepsV">20</output></div><input type="range" id="vidSteps" min="8" max="40" value="20"></div>
+        <div class="row">
+          <div class="field"><div class="label">Guidance <output id="vidCfgV">6</output></div><input type="range" id="vidCfg" min="1" max="10" step="0.5" value="6"></div>
+          <div class="field"><label>Seed</label><input type="number" id="vidSeed" placeholder="Random"></div>
+        </div>
+        <div class="note">Video on CPU is heavy: a 33‑frame clip at 480×272 can take <b>10–40 min</b>. 16 GB RAM recommended.</div>
+      </div>
+      <footer><button class="btn primary" id="vidGo">Generate</button><button class="btn" id="vidStop" disabled>Stop</button></footer>
+    </aside>
+    <div class="stage">
+      <div class="canvas" id="vidCanvas"><div class="empty"><div class="big">No clip yet</div>Describe motion and camera, then press Generate</div>
+        <div class="prog" id="vidProg"><div class="t"><b class="ph">Starting</b><span class="eta"></span></div><div class="bar ind"><i></i></div></div>
+      </div>
+      <div class="toolbar"><span id="vidInfo">—</span><div class="spacer"></div>
+        <button class="btn sm" id="vidPlay" disabled>Pause</button><button class="btn sm" id="vidWebm" disabled>Export WebM</button><button class="btn sm" id="vidReveal" disabled>Show in folder</button></div>
+      <div class="strip" id="vidStrip"></div>
+    </div>
+  </section>
+
+  <!-- MODELS -->
+  <section class="view" id="view-models"><div class="page">
+    <h2>Models</h2><p class="sub">Weights are downloaded once from Hugging Face and stored locally. Downloads resume if interrupted.</p>
+    <div class="grid" id="modelGrid"></div>
+  </div></section>
+
+  <!-- SETTINGS -->
+  <section class="view" id="view-settings"><div class="page">
+    <h2>Settings</h2><p class="sub">Engine: stable-diffusion.cpp (CPU, AVX2 with AVX fallback).</p>
+    <div class="kv">
+      <div class="k">Model folder</div><div class="row"><input type="text" id="setModelDir" readonly><button class="btn sm" id="pickModelDir" style="flex:none">Change…</button></div>
+      <div class="k">Output folder</div><div class="row"><input type="text" id="setOutDir" readonly><button class="btn sm" id="pickOutDir" style="flex:none">Change…</button></div>
+      <div class="k">CPU threads</div><div class="row"><input type="number" id="setThreads" min="1"><span id="cpuInfo" style="color:var(--muted);align-self:center"></span></div>
+      <div class="k">System</div><div id="sysInfo" style="color:var(--muted)"></div>
+      <div class="k">Engine binaries</div><div id="engInfo" style="color:var(--muted);font-family:var(--mono);font-size:12px"></div>
+    </div>
+    <details class="log" style="margin-top:28px;max-width:820px"><summary>Engine log</summary><pre id="log"></pre></details>
+  </div></section>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const fmtB = b => b >= 1e9 ? (b / 1e9).toFixed(2) + ' GB' : (b / 1e6).toFixed(0) + ' MB';
+const fmtT = s => s < 60 ? s.toFixed(0) + 's' : Math.floor(s / 60) + 'm ' + Math.round(s % 60) + 's';
+let models = [], busy = false, dlState = {};
+
+function toast(msg, err) { const t = $('#toast'); t.textContent = msg; t.className = 'toast on' + (err ? ' err' : ''); clearTimeout(t._h); t._h = setTimeout(() => t.className = 'toast', 4500); }
+function status(text, state) { $('#statusText').textContent = text; $('#statusDot').className = 'dot ' + (state || ''); }
+
+// tabs
+$$('nav button').forEach(b => b.onclick = () => {
+  $$('nav button').forEach(x => x.classList.toggle('on', x === b));
+  $$('.view').forEach(v => v.classList.toggle('on', v.id === 'view-' + b.dataset.view));
+  if (b.dataset.view === 'models') renderModels();
+});
+// chips + sliders
+for (const g of ['#imgAspect', '#vidAspect']) $$(g + ' .chip').forEach(c => c.onclick = () => { $$(g + ' .chip').forEach(x => x.classList.toggle('on', x === c)); });
+for (const id of ['imgSteps', 'vidFrames', 'vidSteps', 'vidCfg']) { const i = $('#' + id); i.oninput = () => $('#' + id + 'V').textContent = i.value; }
+const chip = g => $(g + ' .chip.on').dataset;
+
+// ---------------- models ----------------
+async function loadModels() {
+  models = await jen.models();
+  for (const [sel, kind] of [['#imgModel', 'image'], ['#vidModel', 'video']]) {
+    const s = $(sel), keep = s.value;
+    s.innerHTML = models.filter(m => m.kind === kind).map(m => `<option value="${m.id}">${m.label}${m.ready ? '' : ' — not downloaded'}</option>`).join('');
+    if (keep) s.value = keep;
+  }
+  const any = models.some(m => m.ready);
+  if (!busy) status(any ? 'Ready · offline' : 'Download a model to begin', any ? 'ok' : '');
+}
+function renderModels() {
+  $('#modelGrid').innerHTML = models.map(m => {
+    const total = m.files.reduce((a, f) => a + f.size, 0), dl = m.files.some(f => f.downloading);
+    return `<div class="card"><h3>${m.label}<span class="tag">${m.kind}</span>${m.ready ? '<span class="tag ok">Installed</span>' : ''}</h3>
+      <div class="files">${m.files.map(f => { const d = dlState[f.key]; const pct = f.ready ? 100 : d && d.total ? d.got / d.total * 100 : 0;
+        return `<div class="file"><span class="n" title="${f.url}">${f.name}</span><span class="s">${f.ready ? '✓ ' + fmtB(f.size) : d && d.total ? fmtB(d.got) + ' / ' + fmtB(d.total) : '~' + fmtB(f.size)}</span>
+        <div class="bar"><i style="width:${pct}%"></i></div></div>`; }).join('')}</div>
+      <div class="row" style="flex:none">${m.ready ? `<button class="btn sm danger" data-del="${m.id}">Delete</button>` :
+        dl ? `<button class="btn sm" data-cancel="${m.id}">Pause</button>` : `<button class="btn sm primary" data-dl="${m.id}">Download · ${fmtB(total)}</button>`}</div></div>`;
+  }).join('');
+  $$('[data-dl]').forEach(b => b.onclick = async () => {
+    const id = b.dataset.dl; jen.download(id).then(() => toast('Model installed')).catch(e => e.message !== 'Cancelled' && toast(e.message, true)).finally(() => loadModels().then(renderModels));
+    setTimeout(() => loadModels().then(renderModels), 300);
+  });
+  $$('[data-cancel]').forEach(b => b.onclick = () => jen.cancelDownload(b.dataset.cancel));
+  $$('[data-del]').forEach(b => b.onclick = async () => { if (confirm('Delete these model files?')) { await jen.deleteModel(b.dataset.del); await loadModels(); renderModels(); } });
+}
+let rdT; jen.onDownload(d => { dlState[d.key] = d; if (d.error && d.error !== 'Cancelled') toast(d.error, true); clearTimeout(rdT); rdT = setTimeout(renderModels, 120); });
+
+// ---------------- generation ----------------
+const logEl = $('#log');
+jen.onLog(s => { logEl.textContent = (logEl.textContent + s).slice(-60000); logEl.scrollTop = 1e9; });
+let prog = null, t0 = 0;
+jen.onProgress(p => {
+  if (!prog) return;
+  const ph = prog.querySelector('.ph'), bar = prog.querySelector('.bar'), eta = prog.querySelector('.eta');
+  if (p.phase) { ph.textContent = p.phase; bar.classList.add('ind'); }
+  if (p.steps) {
+    ph.textContent = `Denoising · step ${p.step}/${p.steps}`; bar.classList.remove('ind');
+    bar.firstElementChild.style.width = (p.step / p.steps * 100) + '%';
+    const el = (Date.now() - t0) / 1000; eta.textContent = fmtT(el) + ' elapsed';
+  }
+});
+
+async function run(kind, optsList) {
+  const P = kind === 'image' ? 'img' : 'vid';
+  const m = models.find(x => x.id === optsList[0].model);
+  if (!m.ready) { toast('This model is not downloaded yet — opening Models.', true); $('[data-view=models]').click(); return; }
+  if (!optsList[0].prompt.trim()) { toast('Write a prompt first', true); return; }
+  busy = true; $('#' + P + 'Go').disabled = true; $('#' + P + 'Stop').disabled = false;
+  prog = $('#' + P + 'Prog'); prog.classList.add('on'); prog.querySelector('.ph').textContent = 'Starting engine'; prog.querySelector('.eta').textContent = '';
+  prog.querySelector('.bar').classList.add('ind');
+  try {
+    for (let i = 0; i < optsList.length; i++) {
+      status(`Generating ${kind}${optsList.length > 1 ? ` ${i + 1}/${optsList.length}` : ''}`, 'busy'); t0 = Date.now();
+      const r = await jen.generate(optsList[i]);
+      await show(kind, r.file);
+      $('#' + P + 'Info').textContent = `${m.label} · seed ${r.seed} · ${fmtT(r.seconds)}`;
+      if (optsList[i + 1] && optsList[i + 1].seed >= 0) optsList[i + 1].seed = r.seed + i + 1;
+    }
+    refreshStrip(kind);
+  } catch (e) {
+    const msg = String(e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
+    if (msg !== 'Cancelled') toast(msg + ' — see Settings › Engine log', true); else toast('Stopped');
+  } finally {
+    busy = false; prog.classList.remove('on'); prog = null;
+    $('#' + P + 'Go').disabled = false; $('#' + P + 'Stop').disabled = true; loadModels();
+  }
+}
+const seedVal = id => { const v = $(id).value; return v === '' ? -1 : Number(v); };
+let refPath = null;
+$('#imgGo').onclick = () => {
+  const a = chip('#imgAspect'), n = Number($('#imgBatch').value), seed = seedVal('#imgSeed');
+  run('image', Array.from({ length: n }, (_, i) => ({ model: $('#imgModel').value, prompt: $('#imgPrompt').value, width: +a.w, height: +a.h, steps: +$('#imgSteps').value, seed: seed >= 0 ? seed + i : -1, refImage: refPath })));
+};
+$('#vidGo').onclick = () => {
+  const a = chip('#vidAspect');
+  run('video', [{ model: $('#vidModel').value, prompt: $('#vidPrompt').value, negative: $('#vidNeg').value, width: +a.w, height: +a.h, frames: +$('#vidFrames').value, steps: +$('#vidSteps').value, cfg: +$('#vidCfg').value, seed: seedVal('#vidSeed') }]);
+};
+$('#imgStop').onclick = $('#vidStop').onclick = () => jen.cancel();
+for (const id of ['#imgPrompt', '#vidPrompt']) $(id).addEventListener('keydown', e => { if (e.ctrlKey && e.key === 'Enter') (id[1] === 'i' ? $('#imgGo') : $('#vidGo')).click(); });
+$('#refPick').onclick = async () => { const p = await jen.pickImage(); if (!p) return; refPath = p; $('#refThumb').src = await blobUrl(p); $('#refThumb').hidden = false; $('#refClear').hidden = false; };
+$('#refClear').onclick = () => { refPath = null; $('#refThumb').hidden = true; $('#refClear').hidden = true; };
+
+// ---------------- display ----------------
+const mime = p => /\.png$/i.test(p) ? 'image/png' : /\.jpe?g$/i.test(p) ? 'image/jpeg' : /\.webp$/i.test(p) ? 'image/webp' : /\.webm$/i.test(p) ? 'video/webm' : /\.mp4$/i.test(p) ? 'video/mp4' : 'application/octet-stream';
+async function blobUrl(p) { const buf = await jen.readFile(p); return URL.createObjectURL(new Blob([buf], { type: mime(p) })); }
+let lastImg = null, lastVid = null, player = null;
+
+function stageSet(id, el) { const c = $(id); [...c.children].forEach(ch => { if (!ch.classList.contains('prog')) ch.remove(); }); c.prepend(el); }
+async function show(kind, file) {
+  if (kind === 'image') {
+    const img = new Image(); img.className = 'frame'; img.src = await blobUrl(file); stageSet('#imgCanvas', img);
+    lastImg = file; $('#imgReveal').disabled = false;
+  } else {
+    lastVid = file; $('#vidReveal').disabled = false;
+    if (player) player.stop();
+    if (/\.avi$/i.test(file)) {
+      const frames = parseMjpegAvi(new Uint8Array(await jen.readFile(file)));
+      if (!frames.frames.length) throw new Error('Could not read video frames');
+      player = new FramePlayer(frames); stageSet('#vidCanvas', player.canvas); await player.start();
+      $('#vidPlay').disabled = false; $('#vidWebm').disabled = false;
+    } else {
+      const v = document.createElement('video'); v.className = 'frame'; v.src = await blobUrl(file); v.loop = true; v.autoplay = true; v.controls = true; stageSet('#vidCanvas', v);
+      $('#vidPlay').disabled = true; $('#vidWebm').disabled = true;
+    }
+  }
+}
+$('#imgReveal').onclick = () => lastImg && jen.reveal(lastImg);
+$('#vidReveal').onclick = () => lastVid && jen.reveal(lastVid);
+$('#vidPlay').onclick = () => { if (!player) return; player.toggle(); $('#vidPlay').textContent = player.playing ? 'Pause' : 'Play'; };
+$('#vidWebm').onclick = async () => {
+  if (!player) return; $('#vidWebm').disabled = true; status('Exporting WebM', 'busy');
+  try { const blob = await player.record(); const p = await jen.saveBuffer(lastVid.split(/[\\/]/).pop().replace(/\.avi$/i, '.webm'), new Uint8Array(await blob.arrayBuffer())); if (p) toast('Saved ' + p); }
+  catch (e) { toast(e.message, true); } finally { $('#vidWebm').disabled = false; loadModels(); }
+};
+
+// stable-diffusion.cpp writes MJPEG AVI. Chromium can't play it, so extract the JPEG frames.
+function parseMjpegAvi(u8) {
+  const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength), frames = [];
+  let fps = 16;
+  for (let i = 0; i < Math.min(u8.length - 64, 4096); i++) // 'avih' -> dwMicroSecPerFrame
+    if (u8[i] === 0x61 && u8[i + 1] === 0x76 && u8[i + 2] === 0x69 && u8[i + 3] === 0x68) { const us = dv.getUint32(i + 8, true); if (us > 0) fps = Math.round(1e6 / us); break; }
+  for (let i = 0; i < u8.length - 8; i++) { // '00dc' chunks
+    if (u8[i] === 0x30 && u8[i + 1] === 0x30 && u8[i + 2] === 0x64 && u8[i + 3] === 0x63) {
+      const len = dv.getUint32(i + 4, true), s = i + 8;
+      if (len > 0 && s + len <= u8.length && u8[s] === 0xff && u8[s + 1] === 0xd8) { frames.push(new Blob([u8.subarray(s, s + len)], { type: 'image/jpeg' })); i = s + len - 1; }
+    }
+  }
+  if (!frames.length) { // fallback: scan raw SOI/EOI markers
+    let s = -1;
+    for (let i = 0; i < u8.length - 1; i++) {
+      if (u8[i] === 0xff && u8[i + 1] === 0xd8 && s < 0) s = i;
+      else if (u8[i] === 0xff && u8[i + 1] === 0xd9 && s >= 0) { frames.push(new Blob([u8.subarray(s, i + 2)], { type: 'image/jpeg' })); s = -1; }
+    }
+  }
+  return { fps: Math.min(Math.max(fps, 1), 60), frames };
+}
+class FramePlayer {
+  constructor({ fps, frames }) { this.fps = fps; this.blobs = frames; this.canvas = document.createElement('canvas'); this.canvas.className = 'frame'; this.ctx = this.canvas.getContext('2d'); this.i = 0; this.playing = false; }
+  async start() {
+    this.bitmaps = await Promise.all(this.blobs.map(b => createImageBitmap(b)));
+    this.canvas.width = this.bitmaps[0].width; this.canvas.height = this.bitmaps[0].height;
+    this.playing = true; this.loop();
+  }
+  draw(i) { this.ctx.drawImage(this.bitmaps[i], 0, 0); }
+  loop() { if (!this.playing) return; this.draw(this.i); this.i = (this.i + 1) % this.bitmaps.length; this.h = setTimeout(() => this.loop(), 1000 / this.fps); }
+  toggle() { this.playing = !this.playing; if (this.playing) this.loop(); else clearTimeout(this.h); }
+  stop() { this.playing = false; clearTimeout(this.h); }
+  record() {
+    return new Promise(res => {
+      const was = this.playing; this.stop();
+      const stream = this.canvas.captureStream(this.fps), rec = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp8', videoBitsPerSecond: 8e6 }), chunks = [];
+      rec.ondataavailable = e => e.data.size && chunks.push(e.data);
+      rec.onstop = () => { res(new Blob(chunks, { type: 'video/webm' })); if (was) { this.playing = true; this.loop(); } };
+      rec.start(); let i = 0;
+      const step = () => { if (i >= this.bitmaps.length) { setTimeout(() => rec.stop(), 1000 / this.fps); return; } this.draw(i++); setTimeout(step, 1000 / this.fps); };
+      step();
+    });
+  }
+}
+
+async function refreshStrip(kind) {
+  const all = await jen.gallery();
+  const list = all.filter(g => kind === 'image' ? /\.(png|jpe?g|webp)$/i.test(g.name) : /\.(avi|webm|mp4)$/i.test(g.name)).slice(0, 40);
+  const strip = $(kind === 'image' ? '#imgStrip' : '#vidStrip'); strip.innerHTML = '';
+  for (const g of list) {
+    let el;
+    if (kind === 'image') { el = new Image(); el.className = 'th'; el.loading = 'lazy'; blobUrl(g.file).then(u => el.src = u); }
+    else { el = document.createElement('div'); el.className = 'th'; el.textContent = new Date(g.mtime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
+    el.title = g.name; el.onclick = () => show(kind, g.file).catch(e => toast(e.message, true));
+    strip.appendChild(el);
+  }
+}
+
+// ---------------- settings ----------------
+async function loadSettings() {
+  const s = await jen.getSettings();
+  $('#setModelDir').value = s.modelDir; $('#setOutDir').value = s.outDir; $('#setThreads').value = s.threads;
+  $('#cpuInfo').textContent = `${s.cpus} logical cores`; $('#sysInfo').textContent = `${s.platform} · ${s.ramGB} GB RAM · v${s.version}`;
+  $('#engInfo').textContent = s.engine.length ? s.engine.join(', ') : 'missing — reinstall the app';
+  if (!s.engine.length) toast('Engine binary missing — generation unavailable', true);
+}
+$('#setThreads').onchange = () => jen.setSettings({ threads: Math.max(1, +$('#setThreads').value || 1) });
+$('#pickModelDir').onclick = async () => { const d = await jen.pickDir(); if (d) { await jen.setSettings({ modelDir: d }); loadSettings(); loadModels(); } };
+$('#pickOutDir').onclick = async () => { const d = await jen.pickDir(); if (d) { await jen.setSettings({ outDir: d }); loadSettings(); refreshStrip('image'); refreshStrip('video'); } };
+
+loadModels(); loadSettings(); refreshStrip('image'); refreshStrip('video');
+</script>
+</body>
+</html>

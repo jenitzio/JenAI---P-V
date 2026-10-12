@@ -1,0 +1,28 @@
+{
+  "name": "jenai-vp",
+  "productName": "JenAI - V & P",
+  "version": "1.1.0",
+  "description": "Local AI image and video studio - FLUX.2 Klein and Wan 2.1",
+  "author": "JenAI <noreply@jenai-vp.app>",
+  "license": "MIT",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist:linux": "electron-builder --linux AppImage --x64 --publish never",
+    "dist:win": "electron-builder --win portable --x64 --publish never"
+  },
+  "devDependencies": {
+    "electron": "22.3.27",
+    "electron-builder": "24.13.3"
+  },
+  "build": {
+    "appId": "io.github.jenai-vp",
+    "productName": "JenAI - V & P",
+    "files": ["main.js", "preload.js", "index.html"],
+    "extraResources": [{ "from": "bin", "to": "bin", "filter": ["**/*"] }],
+    "directories": { "output": "dist" },
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "linux": { "target": "AppImage", "category": "Graphics" },
+    "win": { "target": "portable" }
+  }
+}
