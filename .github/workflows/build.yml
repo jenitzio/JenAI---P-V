@@ -1,0 +1,123 @@
+name: Build downloads
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  # 1) Compile the C++ engine to WebAssembly (single self-contained engine.js)
+  engine:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 3.1.64
+
+      - name: Compile engine.cpp
+        run: >
+          emcc engine.cpp -O3 -std=c++17
+          -sMODULARIZE=1 -sEXPORT_NAME=EngineModule
+          -sSINGLE_FILE=1 -sENVIRONMENT=web -sALLOW_MEMORY_GROWTH=1
+          -sSTACK_SIZE=1048576
+          -sEXPORTED_RUNTIME_METHODS=ccall,UTF8ToString
+          -o engine.js
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: engine
+          path: engine.js
+          if-no-files-found: error
+
+  # 2) Package the desktop app (Electron 22 = last release supporting Windows 7)
+  package:
+    needs: engine
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            args: --linux AppImage --x64
+            artifact: app-linux
+            glob: dist/*.AppImage
+          - os: windows-2022
+            args: --win portable --x64
+            artifact: app-windows
+            glob: dist/*.exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: engine
+          path: .
+
+      - name: Generate package.json
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then VERSION="${GITHUB_REF_NAME#v}"; else VERSION="0.0.${GITHUB_RUN_NUMBER}"; fi
+          cat > package.json <<EOF
+          {
+            "name": "jenai-vp",
+            "productName": "JenAI - V & P",
+            "version": "${VERSION}",
+            "description": "Infinite AI Synthesis Engine Workspace - Video, Images, Text Analytics and Models",
+            "author": "JenAI <noreply@jenai-vp.app>",
+            "license": "MIT",
+            "main": "main.js",
+            "devDependencies": {
+              "electron": "22.3.27",
+              "electron-builder": "24.13.3"
+            },
+            "build": {
+              "appId": "io.github.jenai-vp",
+              "productName": "JenAI - V & P",
+              "files": ["main.js", "index.html", "engine.js"],
+              "directories": { "output": "dist" },
+              "artifactName": "\${productName}-\${version}-\${os}-\${arch}.\${ext}",
+              "linux": { "target": "AppImage", "category": "AudioVideo" },
+              "win": { "target": "portable" }
+            }
+          }
+          EOF
+          cat package.json
+
+      - run: npm install --no-audit --no-fund
+
+      - run: npx electron-builder ${{ matrix.args }} --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.glob }}
+          if-no-files-found: error
+
+  # 3) On a v* tag, publish a GitHub Release with the .exe and .AppImage
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [package]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: app-*
+          path: downloads
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: downloads/*
+          generate_release_notes: true
