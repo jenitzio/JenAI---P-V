@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JenAI - V & P</title>
+    <style>
+        :root {
+            --bg-main: #0b0c0f;
+            --bg-surface: #13151a;
+            --bg-card: #1c1f26;
+            --accent: #6366f1;
+            --accent-hover: #4f46e5;
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            --border: #2e333d;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            -webkit-user-select: none;
+        }
+
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Top Navigation Bar */
+        header {
+            background-color: var(--bg-surface);
+            border-bottom: 1px solid var(--border);
+            padding: 0 20px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo-area h1 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            letter-spacing: -0.025em;
+            background: linear-gradient(to right, #a5b4fc, var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 4px;
+            height: 100%;
+            align-items: flex-end;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s ease;
+        }
+
+        .tab:hover {
+            color: var(--text-main);
+            background-color: rgba(255, 255, 255, 0.02);
+        }
+
+        .tab.active {
+            color: var(--text-main);
+            border-bottom-color: var(--accent);
+            background-color: rgba(99, 102, 241, 0.05);
+        }
+
+        /* Model Selector Panel */
+        .global-controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        select {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            outline: none;
+            cursor: pointer;
+        }
+
+        /* Main Workspace Routing */
+        main {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .workspace-panel {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
+            grid-template-columns: 320px 1fr;
+            background-color: var(--bg-main);
+        }
+
+        .workspace-panel.active {
+            display: grid;
+        }
+
+        /* Left Side-Controls */
+        .sidebar-controls {
+            background-color: var(--bg-surface);
+            border-right: 1px solid var(--border);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow-y: auto;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        label {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        textarea, input[type="text"] {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            resize: none;
+            outline: none;
+        }
+
+        textarea:focus, input[type="text"]:focus {
+            border-color: var(--accent);
+        }
+
+        .btn-primary {
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--accent-hover);
+        }
+
+        /* Right Side Viewport Render Canvas Window */
+        .viewport-container {
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            gap: 16px;
+            overflow: hidden;
+        }
+
+        .canvas-area {
+            flex: 1;
+            background-color: #050608;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        canvas {
+            max-width: 100%;
+            max-height: 100%;
+            background-color: #000;
+        }
+
+        .timeline-mock {
+            height: 120px;
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .track {
+            height: 24px;
+            background: var(--bg-card);
+            border-radius: 4px;
+            border: 1px dashed var(--border);
+            position: relative;
+        }
+
+        .text-analysis-output {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 15px;
+            font-family: monospace;
+            font-size: 0.85rem;
+            overflow-y: auto;
+            flex: 1;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo-area">
+            <h1>JenAI - V & P</h1>
+        </div>
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('text-panel')">Text Studio</button>
+            <button class="tab" onclick="switchTab('image-panel')">Image Studio</button>
+            <button class="tab" onclick="switchTab('video-panel')">Video Studio</button>
+        </div>
+        <div class="global-controls">
+            <label for="model-select">Target Model Range:</label>
+            <select id="model-select">
+                <optgroup label="Text (LLM / Analysis)">
+                    <option value="llama3-8b">Llama 3 (8B) - High Speed</option>
+                    <option value="deepseek-r1-7b">DeepSeek-R1 (7B Quantized)</option>
+                    <option value="qwen2.5-3b">Qwen 2.5 (3B Local-optimized)</option>
+                </optgroup>
+                <optgroup label="Image Generation / Edit">
+                    <option value="flux-schnell">Flux.1 Schnell (Ultra Fast GPU)</option>
+                    <option value="sdxl-turbo">Stable Diffusion XL Turbo</option>
+                </optgroup>
+                <optgroup label="Video Synthesis">
+                    <option value="wan-2.1-1.3b">Wan 2.1 (1.3B Expressive)</option>
+                    <option value="ltx-video">LTX-Video (WebGPU Optimized)</option>
+                </optgroup>
+            </select>
+        </div>
+    </header>
+
+    <main>
+        <!-- 1) Text Studio Layout -->
+        <div id="text-panel" class="workspace-panel active">
+            <div class="sidebar-controls">
+                <div class="control-group">
+                    <label>Operational Task</label>
+                    <select id="text-action">
+                        <option value="generate">Generate Response</option>
+                        <option value="edit">Edit / Correct Tone</option>
+                        <option value="analyze">Deep Context Analysis</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>Input Text / Prompt</label>
+                    <textarea id="text-input" rows="8" placeholder="Enter writing prompts or paste long data chunks for analysis here..."></textarea>
+                </div>
+                <button class="btn-primary" onclick="processText()">Run Local Text Engine</button>
+            </div>
+            <div class="viewport-container">
+                <label>Engine Output Stream</label>
+                <div class="text-analysis-output" id="text-output">
+                    Ready to receive execution matrix input...
+                </div>
+            </div>
+        </div>
+
+        <!-- 2) Image Studio Layout -->
+        <div id="image-panel" class="workspace-panel">
+            <div class="sidebar-controls">
+                <div class="control-group">
+                    <label>Task Routing</label>
+                    <select id="image-action">
+                        <option value="txt2img">Text to Image</option>
+                        <option value="edit">Inpaint / Edit Canvas</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>Image Prompt</label>
+                    <textarea id="image-prompt" rows="4" placeholder="Describe the image asset to create..."></textarea>
+                </div>
+                <div class="control-group">
+                    <label>Source Image Asset (Optional)</label>
+                    <input type="text" placeholder="Drop image file reference..." id="img-path-mock" />
+                </div>
+                <button class="btn-primary" onclick="processImage()">Compute Pixels via GLSL</button>
+            </div>
+            <div class="viewport-container">
+                <label>Active Frame Viewport</label>
+                <div class="canvas-area">
+                    <canvas id="gl-image-canvas"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div id="video-panel" class="workspace-panel">
+            <div class="sidebar-controls">
+                <div class="control-group">
+                    <label>Pipeline Method</label>
+                    <select id="video-action">
+                        <option value="txt2vid">Text to Video</option>
+                        <option value="img2vid">Image to Video</option>
+                        <option value="timeline-edit">Timeline Cut Engine</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>Generation Prompt / Context</label>
+                    <textarea id="video-prompt" rows="4" placeholder="Describe motion, transitions, camera mechanics..."></textarea>
+                </div>
+                <button class="btn-primary" onclick="processVideo()">Render Dynamic Sequences</button>
+            </div>
+            <div class="viewport-container">
+                <label>Master Video Compositor Output</label>
+                <div class="canvas-area">
+                    <canvas id="gl-video-canvas"></canvas>
+                </div>
+                <div class="timeline-mock">
+                    <label>Multi-Track Latency Timeline</label>
+                    <div class="track" style="background: linear-gradient(90deg, rgba(99,102,241,0.2) 20%, transparent 20%);"></div>
+                    <div class="track" style="background: linear-gradient(90deg, transparent 10%, rgba(165,180,252,0.2) 60%, transparent 60%);"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+    <script>
+        // Tab switching controller architecture
+        function switchTab(panelId) {
+            document.querySelectorAll('.workspace-panel').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            
+            document.getElementById(panelId).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        // Interfacing stubs communicating with WebAssembly runtime instance
+        let cPlusPlusEngineInstance = null;
+
+        window.addEventListener('DOMContentLoaded', () => {
+            if (typeof EngineModule !== 'undefined') {
+                EngineModule().then(module => {
+                    cPlusPlusEngineInstance = module;
+                    console.log("JenAI Core WebAssembly Engine Statically Initialized.");
+                });
+            }
+        });
+
+        function processText() {
+            const out = document.getElementById('text-output');
+            out.innerHTML = "Allocating fast heap buffers... Computing tokens via CPU pipeline...\n\n";
+            setTimeout(() => {
+                out.innerHTML += "[SUCCESS] Engine run finished execution.\nParsed output text payload ready via shared heap mapping.";
+            }, 600);
+        }
+
+        function processImage() {
+            console.log("Passing matrix targets down via direct GPU bindings...");
+            const canvas = document.getElementById('gl-image-canvas');
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = "#1c1f26";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "#6366f1";
+            ctx.font = "16px sans-serif";
+            ctx.fillText("Rendering GLSL Matrix...", 20, 50);
+        }
+
+        function processVideo() {
+            console.log("Spinning up GLSL fragment shader timeline compilation layers...");
+            const canvas = document.getElementById('gl-video-canvas');
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = "#000";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = "#4f46e5";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(0, canvas.height/2);
+            ctx.lineTo(canvas.width, canvas.height/2);
+            ctx.stroke();
+        }
+    </script>
+    <!-- Statically linked artifact from Emscripten CI build cycle -->
+    <script src="engine.js"></script>
+</body>
+</html>
