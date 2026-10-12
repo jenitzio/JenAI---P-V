@@ -10,20 +10,17 @@ permissions:
   contents: write
 
 env:
-  # stable-diffusion.cpp revision (needs FLUX.2 Klein support, merged Jan 2026).
   SDCPP_REF: master
 
 jobs:
-  # 1) Build the real inference engine (stable-diffusion.cpp, CPU) in two flavours:
-  #    AVX2 (fast) and AVX (fallback for older Windows 7 era CPUs).
   engine:
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-22.04      # glibc 2.35 -> runs on Ubuntu 22.04+
+          - os: ubuntu-22.04
             name: linux
-          - os: windows-2022      # static MSVC runtime, targets Windows 7 (0x0601)
+          - os: windows-2022
             name: windows
     runs-on: ${{ matrix.os }}
     steps:
@@ -38,32 +35,48 @@ jobs:
         shell: bash
         run: |
           cd sdcpp
+          mkdir -p ../out
           for v in avx2 avx; do
-            if [ $v = avx2 ]; then F="-DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON"; else F="-DGGML_AVX2=OFF -DGGML_FMA=OFF -DGGML_F16C=OFF"; fi
-            cmake -B build-$v -DCMAKE_BUILD_TYPE=Release -DGGML_NATIVE=OFF -DGGML_AVX=ON $F -DSD_BUILD_SHARED_LIBS=OFF -DBUILD_SHARED_LIBS=OFF
-            cmake --build build-$v --config Release -j 4
-            mkdir -p ../out
-            B=$(ls build-$v/bin/sd-cli build-$v/bin/sd 2>/dev/null | head -1)
-            cp "$B" ../out/sd-cli-$v && chmod +x ../out/sd-cli-$v
+            if [ "$v" = "avx2" ]; then
+              F="-DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON"
+            else
+              F="-DGGML_AVX2=OFF -DGGML_FMA=OFF -DGGML_F16C=OFF"
+            fi
+            cmake -B "build-$v" -DCMAKE_BUILD_TYPE=Release -DGGML_NATIVE=OFF -DGGML_AVX=ON $F -DSD_BUILD_SHARED_LIBS=OFF -DBUILD_SHARED_LIBS=OFF
+            cmake --build "build-$v" --config Release --target sd-cli -j 4
+            
+            BIN="build-$v/bin/sd-cli"
+            if [ ! -f "$BIN" ]; then BIN="build-$v/bin/sd"; fi
+            cp "$BIN" "../out/sd-cli-$v"
+            chmod +x "../out/sd-cli-$v"
           done
           ../out/sd-cli-avx2 --help | head -5
 
       - name: Build (Windows 7 compatible)
         if: runner.os == 'Windows'
         shell: bash
+        env:
+          MSYS_NO_PATHCONV: "1"
+          MSYS2_ARG_CONV_EXCL: "*"
         run: |
           cd sdcpp
+          mkdir -p ../out
           for v in avx2 avx; do
-            if [ $v = avx2 ]; then F="-DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON"; else F="-DGGML_AVX2=OFF -DGGML_FMA=OFF -DGGML_F16C=OFF"; fi
-            cmake -B build-$v -G "Visual Studio 17 2022" -A x64 \
+            if [ "$v" = "avx2" ]; then
+              F="-DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON"
+            else
+              F="-DGGML_AVX2=OFF -DGGML_FMA=OFF -DGGML_F16C=OFF"
+            fi
+            cmake -B "build-$v" -G "Visual Studio 17 2022" -A x64 \
               -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded \
-              -DCMAKE_C_FLAGS="/D_WIN32_WINNT=0x0601 /DWINVER=0x0601" \
-              -DCMAKE_CXX_FLAGS="/D_WIN32_WINNT=0x0601 /DWINVER=0x0601 /EHsc" \
+              -DCMAKE_C_FLAGS="-D_WIN32_WINNT=0x0601 -DWINVER=0x0601" \
+              -DCMAKE_CXX_FLAGS="-D_WIN32_WINNT=0x0601 -DWINVER=0x0601 /EHsc" \
               -DGGML_NATIVE=OFF -DGGML_AVX=ON $F -DSD_BUILD_SHARED_LIBS=OFF -DBUILD_SHARED_LIBS=OFF
-            cmake --build build-$v --config Release -j 4
-            mkdir -p ../out
-            B=$(ls build-$v/bin/Release/sd-cli.exe build-$v/bin/Release/sd.exe 2>/dev/null | head -1)
-            cp "$B" ../out/sd-cli-$v.exe
+            cmake --build "build-$v" --config Release --target sd-cli -j 4
+            
+            BIN="build-$v/bin/Release/sd-cli.exe"
+            if [ ! -f "$BIN" ]; then BIN="build-$v/bin/Release/sd.exe"; fi
+            cp "$BIN" "../out/sd-cli-$v.exe"
           done
           ../out/sd-cli-avx2.exe --help | head -5
 
@@ -73,7 +86,6 @@ jobs:
           path: out/*
           if-no-files-found: error
 
-  # 2) Package the desktop app (Electron 22 = last release supporting Windows 7)
   package:
     needs: engine
     strategy:
@@ -123,7 +135,6 @@ jobs:
           path: ${{ matrix.glob }}
           if-no-files-found: error
 
-  # 3) On a v* tag, publish a GitHub Release with the .exe and .AppImage
   release:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [package]
